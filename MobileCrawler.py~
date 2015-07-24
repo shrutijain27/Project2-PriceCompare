@@ -1,0 +1,114 @@
+__author__ = 'shruti'
+
+
+# Crawler to crawl flipkart site to retrieve laptops data
+import scrapy
+from scrapy.contrib.linkextractors import LinkExtractor
+from scrapy.contrib.spiders import CrawlSpider, Rule
+from scrapy.spider import BaseSpider
+from scrapy.selector import Selector
+from scrapy.http import Request
+from tutorial.items import TutorialItem
+
+import json
+import string
+
+
+class FlipkartSpider(CrawlSpider):
+    name = "price_compare_spider"
+    allow_domains = ["flipkart.com"]
+
+    start_urls = ['http://www.flipkart.com/mobiles/pr?sid=tyy,4io&otracker=nmenu_quicklinks_All']
+
+    rules = [
+    Rule(LinkExtractor(allow=r'mobiles\/pr\?sid=tyy,4io&start=[0-9]'),
+         callback='parse_list', follow=True)
+    ]
+
+    def parse_list(self, response):
+        hxs = Selector(response)
+        titles = hxs.select(
+            "//div[contains(@class,'product-unit unit-4 browse-product new-design')]")
+        items = []
+        count1 = 0
+        for title in titles:
+            count1 = count1 + 1
+            item = TutorialItem()
+            item['model'] = title.select(
+                ".//div[contains(@class,'pu-title')]/a/text()").extract()
+
+            if not item['model']:
+                item['model']="n/a"
+            else:
+                item['model']=str(item['model'][0]).encode('utf-8').strip()
+
+
+            item['offer'] = title.select(
+                ".//div[contains(@class,'pu-final')]/span/text()").extract()
+            if not item['offer']:
+                item['offer']=0.00
+            else:
+                item['offer']=float(item['offer'][0].replace("Rs.","").replace(",","").strip())
+
+
+            item['standard_url'] = title.select(
+                    ".//div[contains(@class,'pu-title')]/a/@href")[0].extract()
+            if not item['standard_url']:
+                item['standard_url']="n/a"
+            else:
+                item['standard_url']= "http://www.flipkart.com" + item['standard_url']
+
+
+            request = Request(
+                item['standard_url'], callback=self.new_features)
+            request.meta['item'] = item
+            items.append(item)
+            yield request
+
+    def new_features(self,response):
+        item = response.meta["item"]
+        hxs = Selector(response)
+
+        item['image'] = hxs.select(
+            ".//div[contains(@class,'imgWrapper')]/img[1]/@data-zoomimage").extract()
+        if not item['image']:
+            item['image']="n/a"
+        else:
+            item['image']=item['image'][0]
+
+
+        rows = hxs.xpath("//div[contains(@class,'productSpecs')]/table/tr")
+      
+        item['Memory'] = rows.xpath("td[.='Memory']/following-sibling::td[1]/text()").extract()
+        if not item['Memory']:
+            item['Memory']="n/a"
+        else:
+            item['Memory']=str(item['Memory'][0]).encode('utf-8').strip()
+
+        item['Internal'] = rows.xpath("td[.='Internal']/following-sibling::td[1]/text()").extract()
+        if not item['Internal']:
+            item['Internal']="n/a"
+        else:
+            item['Internal']=str(item['Internal'][0]).encode('utf-8').strip()
+
+
+        item['brand'] = rows.xpath("td[.='Brand']/following-sibling::td[1]/text()").extract()
+        if not item['brand']:
+            item['brand']="n/a"
+        else:
+            item['brand']=str(item['brand'][0]).encode('utf-8').strip()
+
+        item['color'] = rows.xpath("td[.='Handset Color']/following-sibling::td[1]/text()").extract()
+        if not item['color']:
+            item['color']="n/a"
+        else:
+            item['color']=str(item['color'][0]).encode('utf-8').strip()
+
+        item['os'] = rows.xpath("td[.='OS']/following-sibling::td[1]/text()").extract()
+        if not item['os']:
+            item['os']="n/a"
+        else:
+            item['os']=str(item['os'][0]).encode('utf-8').strip()
+
+        return item
+
